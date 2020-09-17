@@ -18,6 +18,7 @@ BiasSEGA{T}(dims::Tuple) where T = BiasSEGA{T,length(dims)}(zeros(T, dims))
 BiasSEGA(dims::Tuple) = BiasSEGA{Float64}(dims)
 BiasSEGA{T}(dim::Integer) where T = BiasSEGA{T}((dim,))
 BiasSEGA(dim::Integer) = BiasSEGA{Float64}((dim,))
+BiasSEGA(h::Array{T,N}) where {T,N} = BiasSEGA{T,N}(h)
 
 Base.eltype(sega::BiasSEGA{T}) where T = T
 Base.size(sega::BiasSEGA) = size(sega.h)
@@ -111,6 +112,8 @@ SEGA{T}(θ, dims::Tuple) where T = SEGA{T,length(dims)}(θ, zeros(T, dims), Bias
 SEGA(θ, dims::Tuple) = SEGA{Float64}(θ, dims)
 SEGA{T}(θ, dim::Integer) where T = SEGA{T}(θ, (dim,))
 SEGA(θ, dim::Integer) = SEGA{Float64}(θ, (dim,))
+SEGA(θ, h::Array{T,N}) where {T,N} = SEGA{T,N}(θ, deepcopy(h), h, deepcopy(h))
+SEGA(θ, hp::Array{T,N}, h::Array{T,N}, g::Array{T,N}) where {T,N} = SEGA{T,N}(θ, hp, h, g)
 
 Base.eltype(sega::SEGA{T}) where T = T
 Base.size(sega::SEGA) = size(sega.h)
