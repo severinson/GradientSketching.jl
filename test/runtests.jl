@@ -1,5 +1,74 @@
 using GradientSketching
 using Test
+using LinearAlgebra
+
+@testset "Projection" begin
+    # vector gradient with vector sketches
+    h = zeros(2)
+    project!(h, 1, [1, 0])
+    project!(h, 2, [0, 1])
+    @test h ≈ [1, 2]
+
+    y = randn(2)
+    Q = qr(randn(2, 2)).Q # orthonormal matrix
+    Qy = Q'*y
+    project!(h, Qy[1], Q[:, 1])
+    project!(h, Qy[2], Q[:, 2])
+    @test h ≈ y
+
+    # matrix gradient with vector sketches
+    h = zeros(2, 2)
+    project!(h, [1, 2], [1, 0])
+    project!(h, [3, 4], [0, 1])
+    @test h ≈ [1 2; 3 4]
+
+    Y = randn(2, 2)
+    QY = Q'*Y
+    project!(h, QY[1, :], Q[:, 1])
+    project!(h, QY[2, :], Q[:, 2])
+    @test h ≈ Y
+
+    # vector gradient with matrix sketches
+    h = zeros(2)
+    project!(h, [1, 2], [1 0;0 1])
+    @test h ≈ [1, 2]
+
+    S = randn(2, 2)
+    Sy = S'*y
+    project!(h, Sy, S)
+    @test h ≈ y
+
+    # matrix gradient with matrix sketches
+    h = zeros(2, 2)
+    project!(h, [1 2; 3 4], [1 0;0 1])
+    @test h ≈ [1 2; 3 4]
+
+    SY = S'*Y
+    project!(h, SY, S)
+    @test h ≈ Y
+
+    # vector of arrays gradient with vector sketches
+    h = [zeros(2, 2), zeros(2, 2)]
+    project!(h, ones(2, 2), [1, 0])
+    project!(h, 2.0.*ones(2, 2), [0, 1])
+    @test h[1] ≈ ones(2, 2)
+    @test h[2] ≈ 2.0.*ones(2, 2)
+
+    # vector of arrays gradient with matrix sketches
+    h = [zeros(2, 2), zeros(2, 2)]
+    project!(h, [ones(2, 2), 2.0.*ones(2, 2)], [1 0;0 1])
+    @test h[1] ≈ ones(2, 2)
+    @test h[2] ≈ 2.0.*ones(2, 2)
+
+    S = randn(2, 2)
+    S∇ = [
+        S[1, 1] .* ones(2, 2) .+ S[2, 1] .* ones(2, 2),
+        S[1, 2] .* ones(2, 2) .+ S[2, 2] .* ones(2, 2),
+    ]
+    project!(h, S∇, S)
+    @test h[1] ≈ ones(2, 2)
+    @test h[2] ≈ ones(2, 2)
+end
 
 @testset "BiasSEGA" begin
 
@@ -19,6 +88,10 @@ using Test
     sega = BiasSEGA{Float32}(3)
     @test eltype(sega) == Float32
     @test size(sega) == (3, )
+
+    sega = BiasSEGA(zeros(5))
+    @test eltype(sega) == Float64
+    @test size(sega) == (5, )
 
     ### Vector sketches
     sega = BiasSEGA(2)
@@ -62,14 +135,14 @@ using Test
 
     # Project onto the first dimension
     correct[1, :] .= 1
-    project!(sega, ones(1, 3), [1, 0])
+    project!(sega, ones(3), [1, 0])
     @test gradient(sega) ≈ correct
     gradient!(∇, sega)
     @test ∇ ≈ correct
 
     # Project onto the second dimension
     correct[2, :] .= 1
-    project!(sega, ones(1, 3), [0, 1])
+    project!(sega, ones(3), [0, 1])
     @test gradient(sega) ≈ correct
     gradient!(∇, sega)
     @test ∇ ≈ correct    
@@ -91,14 +164,14 @@ using Test
     
     # Project onto the first dimension
     correct[1, :] .= 1
-    projecta!(sega, ones(1, 3), [1, 0])
+    projecta!(sega, ones(3), [1, 0])
     @test gradient(sega) ≈ correct
     gradient!(∇, sega)
     @test ∇ ≈ correct
 
     # Project onto the second dimension
     correct[2, :] .= 1
-    projecta!(sega, ones(1, 3), [0, 1])
+    projecta!(sega, ones(3), [0, 1])
     @test gradient(sega) ≈ correct
     gradient!(∇, sega)
     @test ∇ ≈ correct        
@@ -144,6 +217,14 @@ end
     sega = SEGA{Float32}(1, 3)
     @test eltype(sega) == Float32
     @test size(sega) == (3, )      
+
+    sega = SEGA(1, zeros(5))
+    @test eltype(sega) == Float64
+    @test size(sega) == (5, )    
+
+    sega = SEGA(1, zeros(5), zeros(5), zeros(5))
+    @test eltype(sega) == Float64
+    @test size(sega) == (5, )
 
     ### Matrix sketches
     sega = SEGA(1, (2, 3))

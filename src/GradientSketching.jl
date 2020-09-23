@@ -1,9 +1,117 @@
 module GradientSketching
 
-using LinearAlgebra, Random
+using LinearAlgebra, Random, CatViews
 
 export BiasSEGA, SEGA
 export project!, projecta!, gradient, gradient!
+
+### General projection methods
+
+"""
+    project!(h::AbstractVector, s∇::Number, s::AbstractVector; Binv=I)
+
+Project `h` onto the space consisting of all `y` such that `s'*y = s∇`. Updates `h` in-place.
+
+"""
+function project!(h::AbstractVector, s∇::Number, s::AbstractVector; Binv=I)
+    length(s) == length(h) || throw(DimensionMismatch("s has length $(length(s)), h has length $(length(h))"))
+    Binv == I || size(Binv) == (length(s), length(s)) || throw(DimensionMismatch("Binv has dimensions $(size(Binv)), s has dimensions ($(length(s)),1)"))
+    P = Binv * (s ./ dot(s, Binv, s))
+    c = dot(s, h) - s∇
+    for i in 1:length(h)
+        h[i] -= c*P[i]
+    end
+    h
+end
+
+function project!(h::AbstractMatrix, s∇::AbstractVector, s::AbstractVector; Binv=I) where T
+    length(s) == size(h, 1) || throw(DimensionMismatch("s has length $(length(s)), h has dimensions $(size(h))"))
+    length(s∇) == size(h, 2) || throw(DimensionMismatch("s∇ has length $(length(s∇)), h has dimensions $(size(h))"))
+    Binv == I || size(Binv) == (length(s), length(s)) || throw(DimensionMismatch("Binv has dimensions $(size(Binv)), s has dimensions ($(length(s)),1)"))
+    P = Binv * (s ./ dot(s, Binv, s))
+    for col in 1:size(h, 2)
+        hv = view(h, :, col)
+        c  = dot(s, hv) - s∇[col]
+        for row in 1:length(hv)
+            hv[row] -= c*P[row]
+        end
+    end
+    h
+end
+
+function project!(h::AbstractVector, S∇::AbstractVector, S::AbstractMatrix; Binv=I)
+    size(S, 1) == size(h, 1) || throw(DimensionMismatch("S has dimensions $(size(S)), h has dimensions $(size(h))"))
+    size(S∇, 2) == size(h, 2) || throw(DimensionMismatch("S∇ has dimensions $(size(S∇)), h has dimensions $(size(h))"))
+    Binv == I || size(Binv) == (size(S, 1), size(S, 1)) || throw(DimensionMismatch("Binv has dimensions $(size(Binv)), S has dimensions $(size(S))"))
+    StS = S'*Binv*S
+    h .-= Binv*S * (StS \ (S'*h .- S∇))
+end
+
+function project!(h::AbstractMatrix, S∇::AbstractMatrix, S::AbstractMatrix; Binv=I)
+    size(S, 1) == size(h, 1) || throw(DimensionMismatch("S has dimensions $(size(S)), h has dimensions $(size(h))"))
+    size(S∇, 2) == size(h, 2) || throw(DimensionMismatch("S∇ has dimensions $(size(S∇)), h has dimensions $(size(h))"))
+    Binv == I || size(Binv) == (size(S, 1), size(S, 1)) || throw(DimensionMismatch("Binv has dimensions $(size(Binv)), S has dimensions $(size(S))"))
+    StS = S'*Binv*S
+    h .-= Binv*S * (StS \ (S'*h .- S∇))
+    h
+end
+
+function project!(h::AbstractVector{T}, S∇::AbstractVector{T}, S::AbstractMatrix; Binv=I) where T <: AbstractArray
+    project!(
+        reshape(CatView(h...), length(h[1]), length(h))', # convert h to a matrix by unrolling the component arrays
+        reshape(CatView(S∇...), length(S∇[1]), length(S∇))',
+        S, Binv=Binv,
+    )
+    h
+end
+
+function project!(h::AbstractVector{T}, S∇::T, S::AbstractVector; Binv=I) where T <: AbstractArray
+    project!(
+        reshape(CatView(h...), length(h[1]), length(h))', # convert h to a matrix by unrolling the component arrays
+        reshape(S∇, length(S∇)), # convert to a vector
+        S, Binv=Binv,
+    )
+    h
+end
+
+"""
+    projecta!(h::AbstractArray, S∇, S::AbstractMatrix; Binv=I, γ::Integer=5)
+
+Approximate version of `project!` that projects onto each column of `S` separately. Iterates over a random permutation
+of the columns `γ` times. This method is equivalent to `project!` if the columns of `S` are orthogonal.
+"""
+function projecta!(h::AbstractArray, S∇, S::AbstractMatrix; Binv=I, γ::Integer=5)
+    γ >= 1 || throw(DomainError(γ, "γ must be positive."))
+    p = collect(1:size(S, 1))
+    for _ in 1:γ
+        shuffle!(p)
+        for i in p
+            project!(h, selectdim(S∇, 1, i), view(S, :, i), Binv=Binv)
+        end
+    end
+    h
+end
+
+"""
+    projecta!(h::AbstractArray, S∇::AbstractVector, S::AbstractMatrix; Binv=I, γ::Integer=5)
+
+Approximate version of `project!` for vector gradients.
+"""
+function projecta!(h::AbstractArray, S∇::AbstractVector, S::AbstractMatrix; Binv=I, γ::Integer=5)
+    γ >= 1 || throw(DomainError(γ, "must be positive."))
+    p = collect(1:size(S, 1))
+    for _ in 1:γ
+        shuffle!(p)
+        for i in p
+            project!(h, S∇[i], view(S, :, i), Binv=Binv)
+        end
+    end
+    h
+end
+
+projecta!(h::AbstractArray, S∇, s::AbstractVector; Binv=I, γ::Integer=5) = project!(h, S∇, s; Binv=Binv)
+
+### Biased SEGA
 
 """
 
@@ -18,7 +126,6 @@ BiasSEGA{T}(dims::Tuple) where T = BiasSEGA{T,length(dims)}(zeros(T, dims))
 BiasSEGA(dims::Tuple) = BiasSEGA{Float64}(dims)
 BiasSEGA{T}(dim::Integer) where T = BiasSEGA{T}((dim,))
 BiasSEGA(dim::Integer) = BiasSEGA{Float64}((dim,))
-BiasSEGA(h::Array{T,N}) where {T,N} = BiasSEGA{T,N}(h)
 
 Base.eltype(sega::BiasSEGA{T}) where T = T
 Base.size(sega::BiasSEGA) = size(sega.h)
@@ -26,75 +133,18 @@ Base.size(sega::BiasSEGA, i::Integer) = size(sega.h, i)
 Base.show(io::IO, sega::BiasSEGA) = print(io, "BiasSEGA{$(eltype(sega)),$(size(sega))")
 
 """
-    project!(sega::BiasSEGA{T,1}, s∇::Number, s::AbstractVector; Binv=I) where T
+    project!(sega::BiasSEGA, args...; kwargs...)
 
-Update the gradient estimate `h` in-place with the one-dimensional gradient sketch `s'*∇`, where
-`s` is the sketching vector and `∇` is the gradient. The updated estimate is the projection of
-`h` onto the set of arrays `y` satisfying `s'*y = s'*∇`.
-"""
-function project!(sega::BiasSEGA{T,1}, s∇::Number, s::AbstractVector; Binv=I) where T
-    length(s) == size(sega, 1) || throw(DimensionMismatch("s dimensions ($(length(s)),1), h has dimensions $(size(sega))"))
-    Binv == I || size(Binv) == (length(s), length(s)) || throw(DimensionMismatch("Binv has dimensions $(size(Binv)), s has dimensions ($(length(s)),1)"))    
-    P = s ./ dot(s, Binv, s)
-    sega.h .-= Binv * P * (dot(s, sega.h) - s∇)
-end
+Calls `project!(sega.h, args...; kwargs...)`.
 
 """
-    project!(sega::BiasSEGA, S∇, S::AbstractMatrix; Binv=I)
-
-Update the gradient estimate `h` in-place with the gradient sketch `S'*∇`, where
-`S` is the sketching matrix and `∇` is the gradient. The updated estimate is the projection of
-`h` onto the set of arrays `y` satisfying `S'*y = S'*∇`.
-"""
-function project!(sega::BiasSEGA, S∇, S::AbstractMatrix; Binv=I)
-    size(S, 1) == size(sega, 1) || throw(DimensionMismatch("S has dimensions $(size(S)), h has dimensions $(size(sega))"))
-    size(S∇)[2:end] == size(sega)[2:end] || throw(DimensionMismatch("S∇ has dimensions $(size(S∇)), h has dimensions $(size(sega))"))
-    Binv == I || size(Binv) == (length(s), length(s)) || throw(DimensionMismatch("Binv has dimensions $(size(Binv)), S has dimensions $(size(S))"))
-    StS = S'*Binv*S
-    sega.h .-= Binv*S*(StS \ (S'*sega.h .- S∇))
-end
-
-project!(sega::BiasSEGA, S∇, s::AbstractVector; Binv=I) = project!(sega, S∇, reshape(s, length(s), 1), Binv=Binv)
-
-"""
-    projecta!(sega::BiasSEGA, S∇, S::AbstractMatrix; Binv=I, γ::Integer=5)
-
-Approximate version of `project!` that projects onto each column of `S` separately. Iterates over a random permutation
-of the columns `γ` times. This method is equivalent to `project!` if the columns of `S` are orthogonal.
-"""
-function projecta!(sega::BiasSEGA, S∇, S::AbstractMatrix; Binv=I, γ::Integer=5)
-    γ >= 1 || throw(DomainError("γ must be positive."))
-    p = collect(1:size(S, 1))
-    for _ in 1:γ
-        shuffle!(p)
-        for i in p
-            project!(sega, selectdim(S∇, 1, i:i), view(S, :, i), Binv=Binv)
-        end
-    end
-    sega.h
-end
-
-"""
-    projecta!(sega::BiasSEGA, S∇::AbstractVector, S::AbstractMatrix; Binv=I, γ::Integer=5)
-
-Approximate version of `project!` for vector gradients.
-"""
-function projecta!(sega::BiasSEGA, S∇::AbstractVector, S::AbstractMatrix; Binv=I, γ::Integer=5)
-    γ >= 1 || throw(DomainError("γ must be positive."))
-    p = collect(1:size(S, 1))
-    for _ in 1:γ
-        shuffle!(p)
-        for i in p
-            project!(sega, S∇[i], view(S, :, i), Binv=Binv)
-        end
-    end
-    sega.h
-end
-
-projecta!(sega::BiasSEGA, S∇, s::AbstractVector; Binv=I, γ::Integer=5) = project!(sega::BiasSEGA, S∇, s::AbstractVector; Binv=Binv)
+project!(sega::BiasSEGA, args...; kwargs...) = project!(sega.h, args...; kwargs...)
+projecta!(sega::BiasSEGA, args...; kwargs...) = projecta!(sega.h, args...; kwargs...)
 
 gradient!(∇, sega::BiasSEGA) = ∇ .= sega.h
 gradient(sega::BiasSEGA) = gradient!(zero(sega.h), sega)
+
+### Unbiased SEGA
 
 """
 
@@ -112,8 +162,12 @@ SEGA{T}(θ, dims::Tuple) where T = SEGA{T,length(dims)}(θ, zeros(T, dims), Bias
 SEGA(θ, dims::Tuple) = SEGA{Float64}(θ, dims)
 SEGA{T}(θ, dim::Integer) where T = SEGA{T}(θ, (dim,))
 SEGA(θ, dim::Integer) = SEGA{Float64}(θ, (dim,))
-SEGA(θ, h::Array{T,N}) where {T,N} = SEGA{T,N}(θ, deepcopy(h), h, deepcopy(h))
-SEGA(θ, hp::Array{T,N}, h::Array{T,N}, g::Array{T,N}) where {T,N} = SEGA{T,N}(θ, hp, h, g)
+SEGA(θ, h::Array{T,N}) where {T,N} = SEGA{T,N}(θ, deepcopy(h), BiasSEGA(h), deepcopy(h))
+function SEGA(θ, hp::Array{T,N}, h::Array{T,N}, g::Array{T,N}) where {T,N} 
+    size(hp) == size(h) || throw(DimensionMismatch("hp has dimensions $(size(hp)), h has dimensions $(size(h))"))
+    size(g) == size(h) || throw(DimensionMismatch("g has dimensions $(size(g)), h has dimensions $(size(h))"))
+    SEGA{T,N}(θ, hp, BiasSEGA(h), g)
+end
 
 Base.eltype(sega::SEGA{T}) where T = T
 Base.size(sega::SEGA) = size(sega.h)
@@ -135,7 +189,7 @@ end
 Compute an unbiased estimate of the gradient.
 
 """
-function gradient!(∇::Array{T,N}, sega::SEGA{T,N}) where {T,N}
+function gradient!(∇::AbstractArray{T,N}, sega::SEGA{T,N}) where {T,N}
     gradient!(∇, sega.h) # store the current (biased) estimate in ∇
     ∇ .*= sega.θ
     ∇ .+= (1-sega.θ) .* sega.hp
