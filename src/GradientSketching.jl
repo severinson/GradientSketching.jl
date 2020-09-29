@@ -43,7 +43,7 @@ function project!(h::AbstractVector, S∇::AbstractVector, S::AbstractMatrix; Bi
     size(S, 1) == size(h, 1) || throw(DimensionMismatch("S has dimensions $(size(S)), h has dimensions $(size(h))"))
     size(S∇, 2) == size(h, 2) || throw(DimensionMismatch("S∇ has dimensions $(size(S∇)), h has dimensions $(size(h))"))
     Binv == I || size(Binv) == (size(S, 1), size(S, 1)) || throw(DimensionMismatch("Binv has dimensions $(size(Binv)), S has dimensions $(size(S))"))
-    StS = S'*Binv*S
+    StS = Symmetric(S'*Binv*S)
     h .-= Binv*S * (StS \ (S'*h .- S∇))
 end
 
@@ -51,7 +51,7 @@ function project!(h::AbstractMatrix, S∇::AbstractMatrix, S::AbstractMatrix; Bi
     size(S, 1) == size(h, 1) || throw(DimensionMismatch("S has dimensions $(size(S)), h has dimensions $(size(h))"))
     size(S∇, 2) == size(h, 2) || throw(DimensionMismatch("S∇ has dimensions $(size(S∇)), h has dimensions $(size(h))"))
     Binv == I || size(Binv) == (size(S, 1), size(S, 1)) || throw(DimensionMismatch("Binv has dimensions $(size(Binv)), S has dimensions $(size(S))"))
-    StS = S'*Binv*S
+    StS = Symmetric(S'*Binv*S)
     h .-= Binv*S * (StS \ (S'*h .- S∇))
     h
 end
