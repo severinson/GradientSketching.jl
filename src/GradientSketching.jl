@@ -42,18 +42,17 @@ end
 function project!(h::AbstractVector, S∇::AbstractVector, S::AbstractMatrix; Binv=I)
     size(S, 1) == size(h, 1) || throw(DimensionMismatch("S has dimensions $(size(S)), h has dimensions $(size(h))"))
     size(S∇, 2) == size(h, 2) || throw(DimensionMismatch("S∇ has dimensions $(size(S∇)), h has dimensions $(size(h))"))
+    Binv == I || error("not implemented")
     Binv == I || size(Binv) == (size(S, 1), size(S, 1)) || throw(DimensionMismatch("Binv has dimensions $(size(Binv)), S has dimensions $(size(S))"))
-    StS = Hermitian(S'Binv*S)
-    h .-= Binv*S * (StS \ (S'*h .- S∇))
+    h .-= S * (S \ (S' \ (S'*h .- S∇)))
 end
 
 function project!(h::AbstractMatrix, S∇::AbstractMatrix, S::AbstractMatrix; Binv=I)
     size(S, 1) == size(h, 1) || throw(DimensionMismatch("S has dimensions $(size(S)), h has dimensions $(size(h))"))
     size(S∇, 2) == size(h, 2) || throw(DimensionMismatch("S∇ has dimensions $(size(S∇)), h has dimensions $(size(h))"))
+    Binv == I || error("not implemented")
     Binv == I || size(Binv) == (size(S, 1), size(S, 1)) || throw(DimensionMismatch("Binv has dimensions $(size(Binv)), S has dimensions $(size(S))"))
-    StS = Hermitian(S'Binv*S)
-    h .-= Binv*S * (StS \ (S'*h .- S∇))
-    h
+    h .-= S * (S \ (S' \ (S'*h .- S∇)))
 end
 
 function project!(h::AbstractVector{T1}, S∇::AbstractVector{T2}, S::AbstractMatrix; Binv=I) where {T1<:AbstractArray{Tv1,N},T2<:AbstractArray{Tv2,N}} where {Tv1,Tv2,N}

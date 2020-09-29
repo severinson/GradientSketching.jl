@@ -87,13 +87,13 @@ using LinearAlgebra
     @test h[2] ≈ ones(2, 2)
 
     # try for many random matrices to ensure there are no problem with singular StS matrices
-    h = ones(Float64, 10)
-    S = zeros(Float64, 10, 20)
+    h = ones(Float64, 5)
+    S = zeros(Float64, 5, 10)
     for _ in 1:100
-        S .= randn(10, 20)
-        project!(h, S'*h, S)
+        S .= randn(5, 10)
         h .= 1
-        @test h ≈ ones(Float64, 10)
+        project!(h, S'*h, S)
+        @test h ≈ ones(Float64, 5)
     end
 end
 
