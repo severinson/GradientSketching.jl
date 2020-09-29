@@ -56,7 +56,8 @@ function project!(h::AbstractMatrix, S∇::AbstractMatrix, S::AbstractMatrix; Bi
     h
 end
 
-function project!(h::AbstractVector{T}, S∇::AbstractVector{T}, S::AbstractMatrix; Binv=I) where T <: AbstractArray
+function project!(h::AbstractVector{T1}, S∇::AbstractVector{T2}, S::AbstractMatrix; Binv=I) where {T1<:AbstractArray{Tv1,N},T2<:AbstractArray{Tv2,N}} where {Tv1,Tv2,N}
+    # where {T1 <: AbstractArray{T,N}, T1 <: AbstractArray{T,N} where {T,N}}
     project!(
         reshape(CatView(h...), length(h[1]), length(h))', # convert h to a matrix by unrolling the component arrays
         reshape(CatView(S∇...), length(S∇[1]), length(S∇))',
@@ -65,7 +66,7 @@ function project!(h::AbstractVector{T}, S∇::AbstractVector{T}, S::AbstractMatr
     h
 end
 
-function project!(h::AbstractVector{T}, S∇::T, S::AbstractVector; Binv=I) where T <: AbstractArray
+function project!(h::AbstractVector{T1}, S∇::T2, S::AbstractVector; Binv=I) where {T1<:AbstractArray{Tv1,N},T2<:AbstractArray{Tv2,N}} where {Tv1,Tv2,N}
     project!(
         reshape(CatView(h...), length(h[1]), length(h))', # convert h to a matrix by unrolling the component arrays
         reshape(S∇, length(S∇)), # convert to a vector

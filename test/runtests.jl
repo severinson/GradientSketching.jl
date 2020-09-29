@@ -54,6 +54,15 @@ using LinearAlgebra
     @test h[1] ≈ ones(2, 2)
     @test h[2] ≈ 2.0.*ones(2, 2)
 
+    # same as above but saving to a view
+    for hi in h
+        hi .= 0
+    end
+    project!(view(h, :), ones(2, 2), [1, 0])
+    project!(view(h, :), 2.0.*ones(2, 2), [0, 1])    
+    @test h[1] ≈ ones(2, 2)
+    @test h[2] ≈ 2.0.*ones(2, 2)
+
     # vector of arrays gradient with matrix sketches
     h = [zeros(2, 2), zeros(2, 2)]
     project!(h, [ones(2, 2), 2.0.*ones(2, 2)], [1 0;0 1])
@@ -66,6 +75,14 @@ using LinearAlgebra
         S[1, 2] .* ones(2, 2) .+ S[2, 2] .* ones(2, 2),
     ]
     project!(h, S∇, S)
+    @test h[1] ≈ ones(2, 2)
+    @test h[2] ≈ ones(2, 2)
+
+    # same as the previous, but saving the result to a view
+    for hi in h
+        hi .= 0
+    end
+    project!(view(h, :), S∇, S)
     @test h[1] ≈ ones(2, 2)
     @test h[2] ≈ ones(2, 2)
 end
