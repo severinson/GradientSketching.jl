@@ -43,7 +43,7 @@ function project!(h::AbstractVector, S∇::AbstractVector, S::AbstractMatrix; Bi
     size(S, 1) == size(h, 1) || throw(DimensionMismatch("S has dimensions $(size(S)), h has dimensions $(size(h))"))
     size(S∇, 2) == size(h, 2) || throw(DimensionMismatch("S∇ has dimensions $(size(S∇)), h has dimensions $(size(h))"))
     Binv == I || size(Binv) == (size(S, 1), size(S, 1)) || throw(DimensionMismatch("Binv has dimensions $(size(Binv)), S has dimensions $(size(S))"))
-    StS = Symmetric(S'*Binv*S)
+    StS = Hermitian(S'Binv*S)
     h .-= Binv*S * (StS \ (S'*h .- S∇))
 end
 
@@ -51,13 +51,12 @@ function project!(h::AbstractMatrix, S∇::AbstractMatrix, S::AbstractMatrix; Bi
     size(S, 1) == size(h, 1) || throw(DimensionMismatch("S has dimensions $(size(S)), h has dimensions $(size(h))"))
     size(S∇, 2) == size(h, 2) || throw(DimensionMismatch("S∇ has dimensions $(size(S∇)), h has dimensions $(size(h))"))
     Binv == I || size(Binv) == (size(S, 1), size(S, 1)) || throw(DimensionMismatch("Binv has dimensions $(size(Binv)), S has dimensions $(size(S))"))
-    StS = Symmetric(S'*Binv*S)
+    StS = Hermitian(S'Binv*S)
     h .-= Binv*S * (StS \ (S'*h .- S∇))
     h
 end
 
 function project!(h::AbstractVector{T1}, S∇::AbstractVector{T2}, S::AbstractMatrix; Binv=I) where {T1<:AbstractArray{Tv1,N},T2<:AbstractArray{Tv2,N}} where {Tv1,Tv2,N}
-    # where {T1 <: AbstractArray{T,N}, T1 <: AbstractArray{T,N} where {T,N}}
     project!(
         reshape(CatView(h...), length(h[1]), length(h))', # convert h to a matrix by unrolling the component arrays
         reshape(CatView(S∇...), length(S∇[1]), length(S∇))',

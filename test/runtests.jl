@@ -85,6 +85,16 @@ using LinearAlgebra
     project!(view(h, :), S∇, S)
     @test h[1] ≈ ones(2, 2)
     @test h[2] ≈ ones(2, 2)
+
+    # try for many random matrices to ensure there are no problem with singular StS matrices
+    h = ones(Float64, 10)
+    S = zeros(Float64, 10, 20)
+    for _ in 1:100
+        S .= randn(10, 20)
+        project!(h, S'*h, S)
+        h .= 1
+        @test h ≈ ones(Float64, 10)
+    end
 end
 
 @testset "BiasSEGA" begin
@@ -168,7 +178,7 @@ end
     sega = BiasSEGA((2, 3))
     ∇ = zeros(2, 3)
     correct = ones(2, 3)
-    S = [1 2; 3 4]
+    S = [1.0 2; 3 4]
     project!(sega, S'*correct, S)    
     @test gradient(sega) ≈ correct
     gradient!(∇, sega)
@@ -247,7 +257,7 @@ end
     sega = SEGA(1, (2, 3))
     ∇ = zeros(2, 3)
     correct = ones(2, 3)
-    S = [1 2; 3 4]
+    S = [1.0 2; 3 4]
     project!(sega, S'*correct, S)
     @test gradient(sega) ≈ correct
     gradient!(∇, sega)
@@ -257,7 +267,7 @@ end
     sega = SEGA(1/2, (2, 3))
     ∇ = zeros(2, 3)
     correct = ones(2, 3)
-    S = [1 2; 3 4]
+    S = [1.0 2; 3 4]
     project!(sega, S'*correct, S)
     @test gradient(sega) ≈ correct ./ 2
     gradient!(∇, sega)
