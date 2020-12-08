@@ -57,25 +57,6 @@ function project!(h::AbstractMatrix, S∇::AbstractMatrix, S::AbstractMatrix; Bi
     h .-= S * (StS \ (S'*h .- S∇))
 end
 
-"""
-
-Unused project method based on SVD
-"""
-function projectsvd!(h::AbstractMatrix, S∇::AbstractMatrix, S::AbstractMatrix; Binv=I)
-    size(S, 1) == size(h, 1) || throw(DimensionMismatch("S has dimensions $(size(S)), h has dimensions $(size(h))"))
-    size(S∇, 2) == size(h, 2) || throw(DimensionMismatch("S∇ has dimensions $(size(S∇)), h has dimensions $(size(h))"))
-    Binv == I || error("not implemented")
-    Binv == I || size(Binv) == (size(S, 1), size(S, 1)) || throw(DimensionMismatch("Binv has dimensions $(size(Binv)), S has dimensions $(size(S))"))    
-    F = svd(S', full=true)
-    tol = F.S[1]*minimum(size(S))*eps(eltype(S))
-    r = searchsortedfirst(F.S, tol, rev=true) - 1
-    println("rank = $r")
-    U = view(F.U, :, 1:r)
-    V = view(F.V, :, 1:r)
-    Vt = view(F.V, :, r+1:size(F.V, 2))
-    h .= V*((Diagonal(1.0./view(F.S, 1:r))*U')*S∇) .+ Vt*(Vt'*h)
-end
-
 function project!(h::AbstractVector{T1}, S∇::AbstractVector{T2}, S::AbstractMatrix; Binv=I) where {T1<:AbstractArray{Tv1,N},T2<:AbstractArray{Tv2,N}} where {Tv1,Tv2,N}
     project!(
         reshape(CatView(h...), length(h[1]), length(h))', # convert h to a matrix by unrolling the component arrays
