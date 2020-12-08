@@ -2,7 +2,7 @@ using GradientSketching
 using Test
 using LinearAlgebra
 
-@testset "Projection" begin
+@time @testset "Projection" begin
     # vector gradient with vector sketches
     h = zeros(2)
     project!(h, 1, [1, 0])
@@ -97,7 +97,7 @@ using LinearAlgebra
     end
 end
 
-@testset "BiasSEGA" begin
+@time @testset "BiasSEGA" begin
 
     ### Constructors
     sega = BiasSEGA((10, 5))
@@ -226,7 +226,7 @@ end
     @test ∇ ≈ correct
 end
 
-@testset "SEGA" begin
+@time @testset "SEGA" begin
 
     ### Constructors
     sega = SEGA(1, (10, 5))
