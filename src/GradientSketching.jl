@@ -55,6 +55,15 @@ function project!(h::AbstractMatrix, S∇::AbstractMatrix, S::AbstractMatrix; Bi
     h .-= S * (S \ (S' \ (S'*h .- S∇)))
 end
 
+"""
+    project!(h::AbstractVector, i::Integer, S)
+
+Coordinate sketch projection.
+"""
+project!(h::AbstractVector, S∇::Number, i::Integer) = h[i] = S∇
+
+project!(h::AbstractVector{<:AbstractArray}, S∇::AbstractArray, i::Integer) = h[i] .= S∇
+
 function project!(h::AbstractVector{T1}, S∇::AbstractVector{T2}, S::AbstractMatrix; Binv=I) where {T1<:AbstractArray{Tv1,N},T2<:AbstractArray{Tv2,N}} where {Tv1,Tv2,N}
     project!(
         reshape(CatView(h...), length(h[1]), length(h))', # convert h to a matrix by unrolling the component arrays

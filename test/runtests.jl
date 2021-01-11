@@ -16,6 +16,15 @@ using LinearAlgebra
     project!(h, Qy[2], Q[:, 2])
     @test h ≈ y
 
+    # vector gradient with coordinate sketches
+    h = zeros(2)
+    project!(h, 10, 1)
+    @test h[1] == 10
+    @test h[2] == 0
+    project!(h, 20, 2)
+    @test h[1] == 10
+    @test h[2] == 20
+
     # matrix gradient with vector sketches
     h = zeros(2, 2)
     project!(h, [1, 2], [1, 0])
@@ -62,6 +71,17 @@ using LinearAlgebra
     project!(view(h, :), 2.0.*ones(2, 2), [0, 1])    
     @test h[1] ≈ ones(2, 2)
     @test h[2] ≈ 2.0.*ones(2, 2)
+
+    # vector of arrays gradient with coordinate sketches
+    h = [zeros(2, 2), zeros(2, 2)]
+    v1 = fill(10, 2, 2)
+    v2 = fill(20, 2, 2)
+    project!(h, v1, 1)
+    @test h[1] ≈ v1
+    @test h[2] ≈ zeros(2, 2)
+    project!(h, v2, 2)
+    @test h[1] ≈ v1
+    @test h[2] ≈ v2
 
     # vector of arrays gradient with matrix sketches
     h = [zeros(2, 2), zeros(2, 2)]
