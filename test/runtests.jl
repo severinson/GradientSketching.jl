@@ -1,6 +1,5 @@
 using GradientSketching
-using Test
-using LinearAlgebra
+using Test, Random, LinearAlgebra
 
 @time @testset "Projection" begin
     # vector gradient with vector sketches
@@ -260,12 +259,51 @@ end
     unbias!(sega)
     @test gradient(sega) ≈ correct
 
-    ### Matrix sketches with θ != 1
-    sega = SEGA((2, 3))
-    ∇ = zeros(2, 3)
-    correct = ones(2, 3)
-    S = [1.0 2; 3 4]
-    project!(sega, 1/2, S'*correct, S)
-    unbias!(sega)
-    @test gradient(sega) ≈ correct ./ 2
+    ### Test SEGA un-biasing
+    h = ones(2)
+    sega = SEGA(h)
+    
+    project!(sega, 1/2, 0, 1)
+    g = unbias!(sega)
+    @test g ≈ [-1, 1]
+
+    project!(sega, 1/2, 0, 2)
+    g = unbias!(sega)
+    @test g ≈ [0, -1]
+
+    ### Same as previous, but for a vector of arrays gradient
+    h = [ones(2) for _ in 1:2]
+    sega = SEGA(h)
+
+    project!(sega, 1/2, zeros(2), 1)
+    g = unbias!(sega)
+    @test g ≈ [fill(-1, 2), ones(2)]
+
+    project!(sega, 1/2, zeros(2), 2)
+    g = unbias!(sega)
+    @test g ≈ [zeros(2), fill(-1, 2)]
+
+    ### Test SEGA un-biasing when minimizing f(x) = x'*Q*x ./ 2 .+ c'*x
+    # over many realizations of the starting point and current gradient estimate
+    Random.seed!(123)
+    Q = Symmetric(randn(2, 2))
+    c = randn(2)
+    f = (x) -> x'*Q*x ./ 2 .+ c'*x
+    ∇ = (x) -> Q*x .+ c    
+    x = randn(2)
+    h = zeros(2)
+    s = zeros(2)
+    avg = zeros(2)
+    nsamples = 100000
+    for i in 1:nsamples
+        x .= randn(2)
+        s .= randn(2)
+        h .= randn(2)
+        sega = SEGA(h)
+        project!(sega, 1/2, dot(s, ∇(x)), s)
+        g = unbias!(sega)
+        avg .+= g .- ∇(x)
+    end
+    avg ./= nsamples * length(avg)
+    @test avg ≈ zeros(2) atol=1e-2
 end

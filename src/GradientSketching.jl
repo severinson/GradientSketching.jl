@@ -159,9 +159,9 @@ SEGA gradient estimator
 
 """
 mutable struct SEGA{T,N}
-    θ::Float64          # Bias removal coefficient
+    τ::Float64          # = 1/θ, where θ is the un-biasing coefficient
     hp::Array{T,N}      # Previous estimate
-    h::Array{T,N}    # Biased gradient estimate
+    h::Array{T,N}       # Biased gradient estimate
     g::Array{T,N}       # Unbiased gradient estimate
 end
 
@@ -171,18 +171,14 @@ SEGA{T}(dim::Integer) where T = SEGA{T}((dim,))
 SEGA(dim::Integer) = SEGA{Float64}((dim,))
 
 function SEGA(h::Array{<:Number}) where {T<:Number}
-    hp = similar(h)
-    hp .= 0
+    hp = copy(h)
     g = similar(h)
     g .= 0
     SEGA(0.0, hp, h, g)
 end
 
 function SEGA(h::Array{<:AbstractArray,N}) where {T,N}
-    hp = [similar(hi) for hi in h]
-    for hpi in hp
-        hpi .= 0
-    end
+    hp = [copy(hi) for hi in h]
     g = [similar(hi) for hi in h]
     for gi in g
         gi .= 0
@@ -201,13 +197,13 @@ Base.size(sega::SEGA) = size(sega.h)
 Base.size(sega::SEGA, i::Integer) = size(sega.h, i)
 Base.show(io::IO, sega::SEGA) = print(io, "SEGA{$(eltype(sega)),$(size(sega))")
 
-function project!(sega::SEGA, θ::Real, args...; kwargs...)
-    sega.θ += θ
+function project!(sega::SEGA, τ::Real, args...; kwargs...)
+    sega.τ += τ
     project!(sega.h, args...; kwargs...)
 end
 
 function projecta!(sega::SEGA, θ::Real, args...; kwargs...)
-    sega.θ += θ
+    sega.τ += τ
     projecta!(sega.h, args...; kwargs...)
 end
 
@@ -217,20 +213,20 @@ end
 Compute an unbiased estimate of the gradient.
 """
 function unbias!(sega::SEGA)
-    0 <= sega.θ <= 1 || throw(DomainError(sega.θ, "θ must be in [0, 1]"))
-    sega.g .= (1-sega.θ).*sega.hp .+ sega.θ.*sega.h
+    θ = 1/sega.τ
+    sega.g .= (1-θ).*sega.hp .+ θ.*sega.h
     sega.hp .= sega.h
-    sega.θ = 0.0
+    sega.τ = 0.0
     sega.g
 end
 
 function unbias!(sega::SEGA{<:AbstractArray})
-    0 <= sega.θ <= 1 || throw(DomainError(sega.θ, "θ must be in [0, 1]"))
+    θ = 1/sega.τ
     for (gi, hpi, hi) in zip(sega.g, sega.hp, sega.h)
-        gi .= (1-sega.θ).*hpi .+ sega.θ.*hi    
+        gi .= (1-θ).*hpi .+ θ.*hi
         hpi .= hi
     end
-    sega.θ = 0.0
+    sega.τ = 0.0
     sega.g
 end
 
