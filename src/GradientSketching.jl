@@ -3,7 +3,7 @@ module GradientSketching
 using LinearAlgebra, Random, CatViews
 
 export BiasSEGA, SEGA
-export project!, projecta!, gradient, gradient!
+export project!, projecta!, gradient, unbias!
 
 ### General projection methods
 
@@ -149,8 +149,7 @@ Calls `project!(sega.h, args...; kwargs...)`.
 project!(sega::BiasSEGA, args...; kwargs...) = project!(sega.h, args...; kwargs...)
 projecta!(sega::BiasSEGA, args...; kwargs...) = projecta!(sega.h, args...; kwargs...)
 
-gradient!(∇, sega::BiasSEGA) = ∇ .= sega.h
-gradient(sega::BiasSEGA) = gradient!(zero(sega.h), sega)
+gradient(sega::BiasSEGA) = sega.h
 
 ### Unbiased SEGA
 
@@ -159,22 +158,42 @@ gradient(sega::BiasSEGA) = gradient!(zero(sega.h), sega)
 SEGA gradient estimator
 
 """
-struct SEGA{T,N}
-    θ::T                # Bias removal coefficient
+mutable struct SEGA{T,N}
+    θ::Float64          # Bias removal coefficient
     hp::Array{T,N}      # Previous estimate
-    h::BiasSEGA{T,N}    # Biased gradient estimate
+    h::Array{T,N}    # Biased gradient estimate
     g::Array{T,N}       # Unbiased gradient estimate
 end
 
-SEGA{T}(θ, dims::Tuple) where T = SEGA{T,length(dims)}(θ, zeros(T, dims), BiasSEGA{T}(dims), zeros(T, dims))
-SEGA(θ, dims::Tuple) = SEGA{Float64}(θ, dims)
-SEGA{T}(θ, dim::Integer) where T = SEGA{T}(θ, (dim,))
-SEGA(θ, dim::Integer) = SEGA{Float64}(θ, (dim,))
-SEGA(θ, h::Array{T,N}) where {T,N} = SEGA{T,N}(θ, deepcopy(h), BiasSEGA(h), deepcopy(h))
-function SEGA(θ, hp::Array{T,N}, h::Array{T,N}, g::Array{T,N}) where {T,N} 
+SEGA{T}(dims::Tuple) where T = SEGA(0.0, zeros(T, dims), zeros(T, dims), zeros(T, dims))
+SEGA(dims::Tuple) = SEGA{Float64}(dims)
+SEGA{T}(dim::Integer) where T = SEGA{T}((dim,))
+SEGA(dim::Integer) = SEGA{Float64}((dim,))
+
+function SEGA(h::Array{<:Number}) where {T<:Number}
+    hp = similar(h)
+    hp .= 0
+    g = similar(h)
+    g .= 0
+    SEGA(0.0, hp, h, g)
+end
+
+function SEGA(h::Array{<:AbstractArray,N}) where {T,N}
+    hp = [similar(hi) for hi in h]
+    for hpi in hp
+        hpi .= 0
+    end
+    g = [similar(hi) for hi in h]
+    for gi in g
+        gi .= 0
+    end
+    SEGA(0.0, hp, h, g)
+end
+
+function SEGA(hp::Array{T,N}, h::Array{T,N}, g::Array{T,N}) where {T,N} 
     size(hp) == size(h) || throw(DimensionMismatch("hp has dimensions $(size(hp)), h has dimensions $(size(h))"))
     size(g) == size(h) || throw(DimensionMismatch("g has dimensions $(size(g)), h has dimensions $(size(h))"))
-    SEGA{T,N}(θ, hp, BiasSEGA(h), g)
+    SEGA(0.0, hp, h, g)
 end
 
 Base.eltype(sega::SEGA{T}) where T = T
@@ -182,26 +201,39 @@ Base.size(sega::SEGA) = size(sega.h)
 Base.size(sega::SEGA, i::Integer) = size(sega.h, i)
 Base.show(io::IO, sega::SEGA) = print(io, "SEGA{$(eltype(sega)),$(size(sega))")
 
-function project!(sega::SEGA, args...; kwargs...)
-    gradient!(sega.hp, sega.h)
-    project!(sega.h, args...; kwargs...)    
+function project!(sega::SEGA, θ::Real, args...; kwargs...)
+    sega.θ += θ
+    project!(sega.h, args...; kwargs...)
 end
 
-function projecta!(sega::SEGA, args...; kwargs...)
-    gradient!(sega.hp, sega.h)
+function projecta!(sega::SEGA, θ::Real, args...; kwargs...)
+    sega.θ += θ
     projecta!(sega.h, args...; kwargs...)
 end
 
 """
+    unbias!(sega::SEGA)    
 
 Compute an unbiased estimate of the gradient.
-
 """
-function gradient!(∇::AbstractArray{T,N}, sega::SEGA{T,N}) where {T,N}
-    gradient!(∇, sega.h) # store the current (biased) estimate in ∇
-    ∇ .*= sega.θ
-    ∇ .+= (1-sega.θ) .* sega.hp
+function unbias!(sega::SEGA)
+    0 <= sega.θ <= 1 || throw(DomainError(sega.θ, "θ must be in [0, 1]"))
+    sega.g .= (1-sega.θ).*sega.hp .+ sega.θ.*sega.h
+    sega.hp .= sega.h
+    sega.θ = 0.0
+    sega.g
 end
-gradient(sega::SEGA) = gradient!(zero(sega.hp), sega)
+
+function unbias!(sega::SEGA{<:AbstractArray})
+    0 <= sega.θ <= 1 || throw(DomainError(sega.θ, "θ must be in [0, 1]"))
+    for (gi, hpi, hi) in zip(sega.g, sega.hp, sega.h)
+        gi .= (1-sega.θ).*hpi .+ sega.θ.*hi    
+        hpi .= hi
+    end
+    sega.θ = 0.0
+    sega.g
+end
+
+gradient(sega::SEGA) = sega.g
 
 end
