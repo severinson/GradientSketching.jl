@@ -213,6 +213,7 @@ end
 Compute an unbiased estimate of the gradient.
 """
 function unbias!(sega::SEGA)
+    0 < sega.τ || throw(DomainError(sega.τ, "τ must be positive"))
     θ = 1/sega.τ
     sega.g .= (1-θ).*sega.hp .+ θ.*sega.h
     sega.hp .= sega.h
@@ -221,6 +222,7 @@ function unbias!(sega::SEGA)
 end
 
 function unbias!(sega::SEGA{<:AbstractArray})
+    0 < sega.τ || throw(DomainError(sega.τ, "τ must be positive"))    
     θ = 1/sega.τ
     for (gi, hpi, hi) in zip(sega.g, sega.hp, sega.h)
         gi .= (1-θ).*hpi .+ θ.*hi
